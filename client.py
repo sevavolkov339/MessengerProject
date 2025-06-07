@@ -420,19 +420,17 @@ class MessengerClient:
             sock.close()
         
     def listen_for_messages(self):
-        """Listen for incoming messages"""
         while True:
             try:
                 if not self.main_socket:
                     break
-                data = self.recv_json(self.main_socket)
-                if not data:
+                message = self.recv_json(self.main_socket)
+                if not message:
                     break
-                message = data
                 if message['action'] == 'new_message':
-                    # Show message if current chat is with sender or receiver
+                    # Если открыт чат с этим пользователем (не важно, кто отправитель)
                     if self.current_chat == message['sender'] or self.current_chat == message.get('receiver'):
-                        self.display_message(message)
+                        self.root.after(0, lambda m=message: self.display_message(m))
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "New Message",
