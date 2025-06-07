@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import base64
 import struct
+import sys
+import subprocess
 
 class MessengerClient:
     def __init__(self):
@@ -375,6 +377,14 @@ class MessengerClient:
         self.chat_area.config(state=tk.DISABLED)
         self.chat_area.see(tk.END)  # Scroll to the latest message
         
+    def open_file_crossplatform(self, path):
+        if sys.platform.startswith('darwin'):
+            subprocess.call(('open', path))
+        elif sys.platform.startswith('win'):
+            os.startfile(path)
+        elif sys.platform.startswith('linux'):
+            subprocess.call(('xdg-open', path))
+
     def open_file(self, message):
         file_path = message['file_path']
         local_path = os.path.join(os.getcwd(), os.path.basename(file_path))
@@ -386,7 +396,7 @@ class MessengerClient:
             else:
                 messagebox.showerror("Error", f"Could not download file {file_path}")
                 return
-        os.startfile(local_path)
+        self.open_file_crossplatform(local_path)
         
     def request_file_from_server(self, file_path):
         request = {
