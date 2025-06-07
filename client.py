@@ -428,11 +428,9 @@ class MessengerClient:
                 if not isinstance(message, dict):
                     continue
                 if message.get('action') == 'new_message':
-                    # Определяем имя собеседника для этого сообщения
                     other_user = message['sender'] if message['sender'] != self.username else message['receiver']
-                    print(f"Current chat: {self.current_chat}, other_user: {other_user}, sender: {message['sender']}, receiver: {message.get('receiver')}")
                     if self.current_chat == other_user:
-                        self.root.after(0, lambda m=message: self.display_message(m))
+                        self.root.after(0, self.load_chat_history)
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "New Message",
