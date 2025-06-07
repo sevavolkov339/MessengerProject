@@ -428,8 +428,9 @@ class MessengerClient:
                 if not message:
                     break
                 if message['action'] == 'new_message':
-                    # Если открыт чат с этим пользователем (не важно, кто отправитель)
-                    if self.current_chat == message['sender'] or self.current_chat == message.get('receiver'):
+                    print(f"Current chat: {self.current_chat}, sender: {message['sender']}, receiver: {message.get('receiver')}")
+                    # Если открыт чат между текущим пользователем и собеседником
+                    if self.current_chat and (self.current_chat == message['sender'] or self.current_chat == message['receiver']):
                         self.root.after(0, lambda m=message: self.display_message(m))
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
