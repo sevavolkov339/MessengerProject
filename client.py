@@ -281,13 +281,8 @@ class MessengerClient:
         if self.main_socket:
             try:
                 self.send_json(self.main_socket, request)
-                # Display sent message immediately
-                self.display_message({
-                    'sender': self.username,
-                    'content': message,
-                    'is_file': False
-                })
                 self.message_entry.delete(0, tk.END)
+                self.load_chat_history()  # обновляем чат после отправки
             except:
                 messagebox.showerror("Error", "Lost connection to server")
                 
@@ -312,12 +307,7 @@ class MessengerClient:
         if self.main_socket:
             try:
                 self.send_json(self.main_socket, request)
-                self.display_message({
-                    'sender': self.username,
-                    'content': file_name,
-                    'is_file': True,
-                    'file_path': file_name
-                })
+                self.load_chat_history()  # обновляем чат после отправки файла
             except:
                 messagebox.showerror("Error", "Lost connection to server")
                 
