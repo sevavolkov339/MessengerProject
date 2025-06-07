@@ -430,7 +430,7 @@ class MessengerClient:
                 if message.get('action') == 'new_message':
                     other_user = message['sender'] if message['sender'] != self.username else message['receiver']
                     if self.current_chat == other_user:
-                        self.root.after(0, self.load_chat_history)
+                        self.root.after(0, lambda: self.show_chat_window(other_user))
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "New Message",
