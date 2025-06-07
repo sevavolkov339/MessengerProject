@@ -425,11 +425,10 @@ class MessengerClient:
                 if not self.main_socket:
                     break
                 message = self.recv_json(self.main_socket)
-                if not message:
-                    break
-                if message['action'] == 'new_message':
+                if not isinstance(message, dict):
+                    continue
+                if message.get('action') == 'new_message':
                     print(f"Current chat: {self.current_chat}, sender: {message['sender']}, receiver: {message.get('receiver')}")
-                    # Если открыт чат между текущим пользователем и собеседником
                     if self.current_chat and (self.current_chat == message['sender'] or self.current_chat == message['receiver']):
                         self.root.after(0, lambda m=message: self.display_message(m))
                     else:
