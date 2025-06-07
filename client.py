@@ -281,8 +281,13 @@ class MessengerClient:
         if self.main_socket:
             try:
                 self.send_json(self.main_socket, request)
+                # Display sent message immediately
+                self.display_message({
+                    'sender': self.username,
+                    'content': message,
+                    'is_file': False
+                })
                 self.message_entry.delete(0, tk.END)
-                self.load_chat_history()  # обновляем чат после отправки
             except:
                 messagebox.showerror("Error", "Lost connection to server")
                 
@@ -307,7 +312,12 @@ class MessengerClient:
         if self.main_socket:
             try:
                 self.send_json(self.main_socket, request)
-                self.load_chat_history()  # обновляем чат после отправки файла
+                self.display_message({
+                    'sender': self.username,
+                    'content': file_name,
+                    'is_file': True,
+                    'file_path': file_name
+                })
             except:
                 messagebox.showerror("Error", "Lost connection to server")
                 
@@ -418,8 +428,10 @@ class MessengerClient:
                 if not isinstance(message, dict):
                     continue
                 if message.get('action') == 'new_message':
-                    print(f"Current chat: {self.current_chat}, sender: {message['sender']}, receiver: {message.get('receiver')}")
-                    if self.current_chat and (self.current_chat == message['sender'] or self.current_chat == message['receiver']):
+                    # Определяем имя собеседника для этого сообщения
+                    other_user = message['sender'] if message['sender'] != self.username else message['receiver']
+                    print(f"Current chat: {self.current_chat}, other_user: {other_user}, sender: {message['sender']}, receiver: {message.get('receiver')}")
+                    if self.current_chat == other_user:
                         self.root.after(0, lambda m=message: self.display_message(m))
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
