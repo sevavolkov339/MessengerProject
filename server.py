@@ -12,7 +12,7 @@ class MessengerServer:
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.clients = {}  # {username: (socket, address)}
+        self.clients = {}  
         self.initialize_database()
         
     def initialize_database(self):
