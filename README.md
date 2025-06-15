@@ -23,6 +23,10 @@ python server.py
 2. start the clients:
 python client.py
 
+Don't forget to paste the IPv4 adress of your main 
+computer where the server runs in the client.py code on your testing 
+device instead of the 'localhost' (sock.connect('your server's IPv4 adress', 5000))
+
 
 You can use User1 and User2 for testing, the password is 123 for both. 
 
