@@ -16,11 +16,10 @@ class MessengerServer:
         self.initialize_database()
         
     def initialize_database(self):
-        """Initialize SQLite database with required tables"""
         conn = sqlite3.connect('messenger.db')
         cursor = conn.cursor()
         
-        # Users table
+        #create tables
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +29,6 @@ class MessengerServer:
         )
         ''')
         
-        # Contacts table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +40,6 @@ class MessengerServer:
         )
         ''')
         
-        # Messages table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,12 +57,11 @@ class MessengerServer:
         conn.commit()
         conn.close()
         
-        # Create files directory if it doesn't exist
+        #make files folder
         if not os.path.exists('files'):
             os.makedirs('files')
 
     def start(self):
-        """Start the server"""
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
         print(f"Server started on {self.host}:{self.port}")
@@ -76,7 +72,6 @@ class MessengerServer:
             client_thread.start()
 
     def handle_client(self, client_socket, address):
-        """Handle client connections"""
         try:
             while True:
                 data = self.recv_json(client_socket)
@@ -90,7 +85,7 @@ class MessengerServer:
         except Exception as e:
             print(f"Error handling client {address}: {e}")
         finally:
-            # Remove client from active clients when they disconnect
+            #remove client when they disconnect
             for username, (socket, _) in list(self.clients.items()):
                 if socket == client_socket:
                     del self.clients[username]
@@ -98,7 +93,6 @@ class MessengerServer:
             client_socket.close()
 
     def process_request(self, request, client_socket):
-        """Process client requests"""
         action = request.get('action')
         
         if action == 'register':
@@ -119,7 +113,6 @@ class MessengerServer:
             return {'status': 'error', 'message': 'Invalid action'}
 
     def register_user(self, request):
-        """Register a new user"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -140,7 +133,6 @@ class MessengerServer:
             conn.close()
 
     def login_user(self, request, client_socket):
-        """Login user and store their socket"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -153,7 +145,7 @@ class MessengerServer:
             user = cursor.fetchone()
             
             if user:
-                # If user was already logged in, remove old socket
+                #remove old socket if user was already logged in
                 if username in self.clients:
                     try:
                         old_socket = self.clients[username][0]
@@ -170,7 +162,6 @@ class MessengerServer:
             conn.close()
 
     def add_contact(self, request):
-        """Add a new contact for a user"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -178,14 +169,13 @@ class MessengerServer:
             username = request.get('username')
             contact_username = request.get('contact_username')
             
-            # Get user IDs
+            #get user ids
             cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
             user_id = cursor.fetchone()[0]
             
             cursor.execute('SELECT id FROM users WHERE username = ?', (contact_username,))
             contact_id = cursor.fetchone()[0]
             
-            # Add contact
             cursor.execute('INSERT INTO contacts (user_id, contact_id) VALUES (?, ?)',
                          (user_id, contact_id))
             conn.commit()
@@ -197,7 +187,6 @@ class MessengerServer:
             conn.close()
 
     def get_contacts(self, request):
-        """Get all contacts for a user"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -220,7 +209,6 @@ class MessengerServer:
             conn.close()
 
     def send_message(self, request):
-        """Send a message to another user"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -229,7 +217,8 @@ class MessengerServer:
             content = request.get('content')
             is_file = request.get('is_file', False)
             file_path = request.get('file_path', None)
-            # If file, decode and save
+            
+            #handle file upload
             if is_file and 'file_content' in request and file_path:
                 file_content_b64 = request['file_content']
                 file_bytes = base64.b64decode(file_content_b64)
@@ -237,31 +226,34 @@ class MessengerServer:
                 with open(save_path, 'wb') as f:
                     f.write(file_bytes)
                 file_path = save_path
-            # Get user IDs
+            
+            #get user ids
             cursor.execute('SELECT id FROM users WHERE username = ?', (sender,))
             sender_id = cursor.fetchone()[0]
+            
             cursor.execute('SELECT id FROM users WHERE username = ?', (receiver,))
             receiver_id = cursor.fetchone()[0]
-            # Save message
+            
+            #save message
             cursor.execute('''
-                INSERT INTO messages (sender_id, receiver_id, content, is_file, file_path)
+                INSERT INTO messages (sender_id, receiver_id, content, file_path, is_file)
                 VALUES (?, ?, ?, ?, ?)
-            ''', (sender_id, receiver_id, content, is_file, file_path))
+            ''', (sender_id, receiver_id, content, file_path, is_file))
             conn.commit()
-            # Forward message to receiver if online
+            
+            #notify receiver if online
             if receiver in self.clients:
                 receiver_socket = self.clients[receiver][0]
-                message_data = {
+                notification = {
                     'action': 'new_message',
                     'sender': sender,
+                    'receiver': receiver,
                     'content': content,
                     'is_file': is_file,
                     'file_path': file_path
                 }
-                try:
-                    self.send_json(receiver_socket, message_data)
-                except:
-                    del self.clients[receiver]
+                self.send_json(receiver_socket, notification)
+            
             return {'status': 'success', 'message': 'Message sent successfully'}
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
@@ -269,7 +261,6 @@ class MessengerServer:
             conn.close()
 
     def get_messages(self, request):
-        """Get chat history between two users"""
         try:
             conn = sqlite3.connect('messenger.db')
             cursor = conn.cursor()
@@ -277,15 +268,22 @@ class MessengerServer:
             user1 = request.get('user1')
             user2 = request.get('user2')
             
+            #get user ids
+            cursor.execute('SELECT id FROM users WHERE username = ?', (user1,))
+            user1_id = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT id FROM users WHERE username = ?', (user2,))
+            user2_id = cursor.fetchone()[0]
+            
+            #get messages between users
             cursor.execute('''
-                SELECT u1.username as sender, m.content, m.is_file, m.file_path, m.created_at
+                SELECT u.username, m.content, m.is_file, m.file_path, m.created_at
                 FROM messages m
-                JOIN users u1 ON m.sender_id = u1.id
-                JOIN users u2 ON m.receiver_id = u2.id
-                WHERE (u1.username = ? AND u2.username = ?)
-                   OR (u1.username = ? AND u2.username = ?)
+                JOIN users u ON m.sender_id = u.id
+                WHERE (m.sender_id = ? AND m.receiver_id = ?)
+                   OR (m.sender_id = ? AND m.receiver_id = ?)
                 ORDER BY m.created_at
-            ''', (user1, user2, user2, user1))
+            ''', (user1_id, user2_id, user2_id, user1_id))
             
             messages = []
             for row in cursor.fetchall():
@@ -304,15 +302,22 @@ class MessengerServer:
             conn.close()
 
     def get_file(self, request):
-        """Send file content in base64 by file_path"""
-        file_path = request.get('file_path')
-        if not file_path or not os.path.exists(file_path):
-            return {'status': 'error', 'message': 'File not found'}
         try:
+            file_path = request.get('file_path')
+            if not file_path:
+                return {'status': 'error', 'message': 'No file path provided'}
+            
+            #read file
             with open(file_path, 'rb') as f:
                 file_content = f.read()
+            
+            #encode file
             file_content_b64 = base64.b64encode(file_content).decode('utf-8')
-            return {'status': 'success', 'file_content': file_content_b64}
+            
+            return {
+                'status': 'success',
+                'file_content': file_content_b64
+            }
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
 

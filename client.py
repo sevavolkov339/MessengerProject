@@ -14,26 +14,24 @@ class MessengerClient:
     def __init__(self):
         self.username = None
         self.current_chat = None
-        self.main_socket = None  # Main socket for chat
+        self.main_socket = None
         
-        # Create main window
+        #setup main window
         self.root = tk.Tk()
         self.root.title("Messenger")
         self.root.geometry("400x600")
         self.root.configure(bg='#2b2b2b')
         
-        # Create styles
+        #styling
         self.style = ttk.Style()
         self.style.configure('Dark.TFrame', background='#2b2b2b')
         self.style.configure('Dark.TButton', background='#404040', foreground='white')
         self.style.configure('Dark.TLabel', background='#2b2b2b', foreground='white')
         self.style.configure('Dark.TEntry', fieldbackground='white', foreground='black')
         
-        # Show login window
         self.show_login_window()
         
     def create_socket(self):
-        """Create a new socket connection to the server"""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             sock.connect(('localhost', 5000))
@@ -67,7 +65,6 @@ class MessengerClient:
         return data
             
     def send_request(self, request):
-        """Send request to server and get response"""
         sock = self.create_socket()
         if not sock:
             return None
@@ -83,10 +80,8 @@ class MessengerClient:
             sock.close()
             
     def show_login_window(self):
-        """Show login/register window"""
         self.clear_window()
         
-        # Login frame
         login_frame = ttk.Frame(self.root, style='Dark.TFrame')
         login_frame.pack(pady=20)
         
@@ -98,7 +93,6 @@ class MessengerClient:
         self.password_entry = ttk.Entry(login_frame, show="*", style='Dark.TEntry')
         self.password_entry.pack(pady=5)
         
-        # Buttons
         button_frame = ttk.Frame(login_frame, style='Dark.TFrame')
         button_frame.pack(pady=10)
         
@@ -106,44 +100,34 @@ class MessengerClient:
         ttk.Button(button_frame, text="Register", command=self.register).pack(side=tk.LEFT, padx=5)
         
     def show_contacts_window(self):
-        """Show contacts window"""
         self.clear_window()
         
-        # Contacts frame
         contacts_frame = ttk.Frame(self.root, style='Dark.TFrame')
         contacts_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Add contact button
         add_button = ttk.Button(contacts_frame, text="+ Add Contact", command=self.show_add_contact_dialog)
         add_button.pack(pady=5)
         
-        # Contacts list
         self.contacts_listbox = tk.Listbox(contacts_frame, bg='#404040', fg='white', selectbackground='#505050')
         self.contacts_listbox.pack(fill=tk.BOTH, expand=True)
         self.contacts_listbox.bind('<Double-Button-1>', self.open_chat)
         
-        # Refresh contacts
         self.refresh_contacts()
         
     def show_chat_window(self, contact):
-        """Show chat window with selected contact"""
         self.clear_window()
         self.current_chat = contact
         
-        # Chat frame
         chat_frame = ttk.Frame(self.root, style='Dark.TFrame')
         chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Back button
         back_button = ttk.Button(chat_frame, text="← Back", command=self.show_contacts_window)
         back_button.pack(anchor=tk.W, pady=5)
         
-        # Chat area
         self.chat_area = scrolledtext.ScrolledText(chat_frame, bg='#404040', fg='white', wrap=tk.WORD)
         self.chat_area.pack(fill=tk.BOTH, expand=True, pady=5)
         self.chat_area.config(state=tk.DISABLED)
         
-        # Message input
         input_frame = ttk.Frame(chat_frame, style='Dark.TFrame')
         input_frame.pack(fill=tk.X, pady=5)
         
@@ -156,42 +140,46 @@ class MessengerClient:
         file_button = ttk.Button(input_frame, text="📎", command=self.send_file)
         file_button.pack(side=tk.LEFT, padx=5)
         
-        # Load chat history
         self.load_chat_history()
         
     def clear_window(self):
-        """Clear all widgets from the window"""
         for widget in self.root.winfo_children():
             widget.destroy()
             
     def login(self):
-        """Login to the server"""
         username = self.username_entry.get()
         password = self.password_entry.get()
         
+        self.main_socket = self.create_socket()
+        if not self.main_socket:
+            return
+            
         request = {
             'action': 'login',
             'username': username,
             'password': password
         }
         
-        response = self.send_request(request)
-        if not response:
-            return
+        try:
+            self.send_json(self.main_socket, request)
+            response = self.recv_json(self.main_socket)
             
-        if response['status'] == 'success':
-            self.username = username
-            # Create main socket for chat
-            self.main_socket = self.create_socket()
-            if self.main_socket:
+            if response['status'] == 'success':
+                self.username = username
                 self.show_contacts_window()
-                # Start message listener thread
-                threading.Thread(target=self.listen_for_messages, daemon=True).start()
-        else:
-            messagebox.showerror("Error", response['message'])
+                listener_thread = threading.Thread(target=self.listen_for_messages, daemon=True)
+                listener_thread.start()
+            else:
+                messagebox.showerror("Error", response['message'])
+                self.main_socket.close()
+                self.main_socket = None
+        except Exception as e:
+            if self.main_socket:
+                self.main_socket.close()
+                self.main_socket = None
+            messagebox.showerror("Error", f"Login failed: {e}")
             
     def register(self):
-        """Register new user"""
         username = self.username_entry.get()
         password = self.password_entry.get()
         
@@ -211,7 +199,6 @@ class MessengerClient:
             messagebox.showerror("Error", response['message'])
             
     def show_add_contact_dialog(self):
-        """Show dialog to add new contact"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Add Contact")
         dialog.geometry("300x100")
@@ -243,7 +230,6 @@ class MessengerClient:
         ttk.Button(dialog, text="Add", command=add_contact).pack(pady=5)
         
     def refresh_contacts(self):
-        """Refresh contacts list"""
         request = {
             'action': 'get_contacts',
             'username': self.username
@@ -259,14 +245,12 @@ class MessengerClient:
                 self.contacts_listbox.insert(tk.END, contact)
                 
     def open_chat(self, event):
-        """Open chat with selected contact"""
         selection = self.contacts_listbox.curselection()
         if selection:
             contact = self.contacts_listbox.get(selection[0])
             self.show_chat_window(contact)
             
     def send_message(self):
-        """Send message to current chat"""
         message = self.message_entry.get()
         if not message:
             return
@@ -278,28 +262,38 @@ class MessengerClient:
             'content': message
         }
         
-        if self.main_socket:
-            try:
-                self.send_json(self.main_socket, request)
-                # Display sent message immediately
+        send_socket = self.create_socket()
+        if not send_socket:
+            messagebox.showerror("Error", "Could not connect to server")
+            return
+            
+        try:
+            self.send_json(send_socket, request)
+            response = self.recv_json(send_socket)
+            if response['status'] == 'success':
                 self.display_message({
                     'sender': self.username,
                     'content': message,
                     'is_file': False
                 })
                 self.message_entry.delete(0, tk.END)
-            except:
-                messagebox.showerror("Error", "Lost connection to server")
-                
+            else:
+                messagebox.showerror("Error", response['message'])
+        except Exception as e:
+            messagebox.showerror("Error", "Failed to send message")
+        finally:
+            send_socket.close()
+
     def send_file(self):
-        """Send file to current chat"""
         file_path = filedialog.askopenfilename()
         if not file_path:
             return
+            
         file_name = os.path.basename(file_path)
         with open(file_path, 'rb') as f:
             file_content = f.read()
         file_content_b64 = base64.b64encode(file_content).decode('utf-8')
+        
         request = {
             'action': 'send_message',
             'sender': self.username,
@@ -309,20 +303,30 @@ class MessengerClient:
             'file_path': file_name,
             'file_content': file_content_b64
         }
-        if self.main_socket:
-            try:
-                self.send_json(self.main_socket, request)
+        
+        send_socket = self.create_socket()
+        if not send_socket:
+            messagebox.showerror("Error", "Could not connect to server")
+            return
+            
+        try:
+            self.send_json(send_socket, request)
+            response = self.recv_json(send_socket)
+            if response['status'] == 'success':
                 self.display_message({
                     'sender': self.username,
                     'content': file_name,
                     'is_file': True,
                     'file_path': file_name
                 })
-            except:
-                messagebox.showerror("Error", "Lost connection to server")
+            else:
+                messagebox.showerror("Error", response['message'])
+        except Exception as e:
+            messagebox.showerror("Error", "Failed to send file")
+        finally:
+            send_socket.close()
                 
     def load_chat_history(self):
-        """Load chat history with current contact"""
         request = {
             'action': 'get_messages',
             'user1': self.username,
@@ -344,14 +348,12 @@ class MessengerClient:
             self.chat_area.see(tk.END)
             
     def display_message(self, message):
-        """Display message in chat area"""
         self.chat_area.config(state=tk.NORMAL)
         
-        # Configure tags for message colors
-        self.chat_area.tag_configure('sender', foreground='#007bff')  # Blue for sender
-        self.chat_area.tag_configure('receiver', foreground='white')  # White for receiver
+        #message colors
+        self.chat_area.tag_configure('sender', foreground='#007bff')
+        self.chat_area.tag_configure('receiver', foreground='white')
         
-        # Add message
         if message.get('is_file'):
             tag = 'sender' if message['sender'] == self.username else 'receiver'
             self.chat_area.insert(tk.END, f"{message['sender'] if message['sender'] != self.username else 'You'}: ", tag)
@@ -360,7 +362,7 @@ class MessengerClient:
             end = self.chat_area.index(tk.END)
             self.chat_area.tag_add('file_link', start, end)
             self.chat_area.tag_bind('file_link', '<Button-1>', lambda e, m=message: self.open_file(m))
-            # Автоматически скачиваем файл, если его нет
+            
             file_path = message['file_path']
             local_path = os.path.join(os.getcwd(), os.path.basename(file_path))
             if not os.path.exists(local_path):
@@ -375,7 +377,7 @@ class MessengerClient:
                 self.chat_area.insert(tk.END, f"{message['sender']}: {message['content']}\n", 'receiver')
             
         self.chat_area.config(state=tk.DISABLED)
-        self.chat_area.see(tk.END)  # Scroll to the latest message
+        self.chat_area.see(tk.END)
         
     def open_file_crossplatform(self, path):
         if sys.platform.startswith('darwin'):
@@ -430,18 +432,16 @@ class MessengerClient:
                 if message.get('action') == 'new_message':
                     other_user = message['sender'] if message['sender'] != self.username else message['receiver']
                     if self.current_chat == other_user:
-                        self.root.after(0, lambda: self.show_chat_window(other_user))
+                        self.root.after(0, self.load_chat_history)
                     else:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "New Message",
                             f"New message from {message['sender']}: {message['content']}"
                         ))
             except Exception as e:
-                print(f"Error in message listener: {e}")
                 break
                 
     def run(self):
-        """Start the client"""
         self.root.mainloop()
 
 if __name__ == '__main__':
